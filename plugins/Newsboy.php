@@ -286,7 +286,8 @@ TPLCODE;
   if ( $s )
   {
     $stuff = RenderMan::strToPageID($s);
-    $p = RenderMan::getPage($stuff[0], $stuff[1]);
+    $page = new PageProcessor($stuff[0], $stuff[1]);
+    $page->send();
     echo $p;
   }
   
@@ -363,7 +364,7 @@ TPLCODE;
             <table border="0" cellspacing="1" cellpadding="4">
               <tr>
                 <th>Administrative tools:</th>
-                <td class="row3" style="text-align: center;"><a style="color: inherit;" href="' . makeUrlNS('NewsBoy', 'Announce', '', true) . '#do:edit">Edit announcement &raquo;</a></td>
+                <td class="row3" style="text-align: center;"><a style="color: inherit;" href="' . makeUrlNS($stuff[1], $stuff[0], '', true) . '#do:edit">Edit announcement &raquo;</a></td>
                 <td class="row3" style="text-align: center;"><a style="color: inherit;" href="' . makeUrlNS('Special', 'Administration', 'module='.$paths->nslist['Admin'].'NewsboyItemManager', true) . '" onclick="newsboy_open_admin(); return false;">Portal Administration</a></td>
               </tr>
             </table>
