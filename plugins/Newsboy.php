@@ -286,9 +286,12 @@ TPLCODE;
   if ( $s )
   {
     $stuff = RenderMan::strToPageID($s);
+    // Hackish fix to prevent the categorization button and other stuff from being displayed
+    $paths->pages[$s]['special'] = 1;
     $page = new PageProcessor($stuff[0], $stuff[1]);
-    $page->send();
-    echo $p;
+    $content = $page->fetch_text();
+    $content = '?>' . RenderMan::render($content);
+    eval($content);
   }
   
   echo '<h2>Latest news</h2>';
@@ -319,15 +322,30 @@ TPLCODE;
     {
       if ( $i < 5 )
       {
+        $content = $row['page_text'];
+        
+        $trimmed = false;
+        if ( $pos = strpos($content, '<!--BREAK-->' ) )
+        {
+          $content = substr($content, 0, $pos);
+          $trimmed = true;
+        }
+        
         $title = htmlspecialchars($row['name']);
-        $content = RenderMan::render($row['page_text']);
-        if ( strlen($content) > 400 )
+        $content = RenderMan::render($content);
+        
+        if ( strlen($content) > 400 && !$trimmed )
         {
           $content = nb_trim_paragraph($content, 400, $trimmed);
         }
         if ( $trimmed )
         {
-          $content .= ' <a href="' . makeUrlNS('NewsBoy', $row['urlname'], false, true) . '">Read more...</a>';
+          $link = ' <a href="' . makeUrlNS('NewsBoy', $row['urlname'], false, true) . '">Read more...</a>';
+          $content = preg_replace('/(.+?)<\/(p|ul|table|div|pre)>([\s]*?)$/Usi', '\\1' . $link . '</\\2>\\3', $content, 1);
+          if ( !strstr($content, $link) )
+          {
+            $content .= $link;
+          }
         }
         $user_link = nb_make_username_link($row['author'], $row['user_level']);
         $date = date('F d, Y h:i:s a', $row['urlname']);
@@ -364,12 +382,13 @@ TPLCODE;
             <table border="0" cellspacing="1" cellpadding="4">
               <tr>
                 <th>Administrative tools:</th>
-                <td class="row3" style="text-align: center;"><a style="color: inherit;" href="' . makeUrlNS($stuff[1], $stuff[0], '', true) . '#do:edit">Edit announcement &raquo;</a></td>
+                <td class="row3" style="text-align: center;"><a style="color: inherit;" href="' . makeUrlNS('NewsBoy', 'Announce', '', true) . '#do:edit">Edit announcement &raquo;</a></td>
                 <td class="row3" style="text-align: center;"><a style="color: inherit;" href="' . makeUrlNS('Special', 'Administration', 'module='.$paths->nslist['Admin'].'NewsboyItemManager', true) . '" onclick="newsboy_open_admin(); return false;">Portal Administration</a></td>
               </tr>
             </table>
           </div><br />';
   }
+  show_category_info();
 }
 
 /**
@@ -773,7 +792,7 @@ function page_Admin_NewsboyItemManager()
             $errors[] = 'Invalid second.';
           
           $name = $_POST['article_name'];
-          $name = $db->escape($name);
+          // This is db-escaped by PageUtils
           
           $author = $_POST['author'];
           $author = $db->escape($author);
@@ -789,19 +808,27 @@ function page_Admin_NewsboyItemManager()
           if ( count($errors) < 1 )
           {
             $publ = ( isset($_POST['published']) ) ? 1 : 0;
+            
             $result = PageUtils::createpage( (string)$time, 'NewsBoy', $name, $publ );
             
-            // Set content
-            $content = RenderMan::preprocess_text($_POST['content'], true); // this also SQL-escapes it
-            
-            $q = $db->sql_query('UPDATE '.table_prefix.'page_text SET page_text=\'' . $content . '\' WHERE page_id=\'' . $time . '\' AND namespace=\'NewsBoy\';');
-            if ( !$q )
-              $db->_die();
-            
-            if ( $result )
-              echo '<div class="info-box">Your changes have been saved.</div>';
+            if ( $result == 'good' )
+            {
+              // Set content
+              $content = RenderMan::preprocess_text($_POST['content'], true); // this also SQL-escapes it
+              
+              $q = $db->sql_query('UPDATE '.table_prefix.'page_text SET page_text=\'' . $content . '\' WHERE page_id=\'' . $time . '\' AND namespace=\'NewsBoy\';');
+              if ( !$q )
+                $db->_die();
+              
+              if ( $result )
+                echo '<div class="info-box">Your changes have been saved.</div>';
+              else
+                $errors[] = 'PageUtils::createpage returned an error.';
+            }
             else
-              $errors[] = 'PageUtils::createpage returned an error.';
+            {
+              $errors[] = 'PageUtils::createpage returned an error: ' . htmlspecialchars($result);
+            }
             
             break;
           }
@@ -810,7 +837,7 @@ function page_Admin_NewsboyItemManager()
         if ( count($errors) > 0 )
           echo '<div class="warning-box">Errors encountered while preparing data:<ul><li>' . implode('</li><li>', $errors) . '</li></ul></div>';
         
-        $time = time();;
+        $time = time();
         
         // Get author
         $author = $session->username;
@@ -826,7 +853,7 @@ function page_Admin_NewsboyItemManager()
         $minute = date('m', $time);
         $second = date('s', $time);
         
-        echo '<form id="nb_create_form" action="'.makeUrlNS('Special', 'Administration', (( isset($_GET['sqldbg'])) ? 'sqldbg&amp;' : '') .'module='.$paths->cpage['module'] . '&act=create').'" method="post" onsubmit="if ( !submitAuthorized ) return false;">';
+        echo '<form id="nb_create_form" action="'.makeUrlNS('Special', 'Administration', (( isset($_GET['sqldbg'])) ? 'sqldbg&' : '') .'module='.$paths->cpage['module'] . '&act=create').'" method="post" onsubmit="if ( !submitAuthorized ) return false;">';
         echo '<div class="tblholder">
                 <table border="0" cellspacing="1" cellpadding="4">
                   <tr>
@@ -1010,7 +1037,7 @@ function page_Admin_NewsboyConfiguration()
  * @param bool Reference. Set to true if the text was trimmed, otherwise set to false.
  */
 
-function nb_trim_paragraph($text, $len = 500, &$trimmed = false)
+function nb_trim_paragraph($text, $len = 500, &$trimmed)
 {
   $trimmed = false;
   if ( strlen($text) <= $len )
