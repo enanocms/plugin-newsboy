@@ -91,6 +91,7 @@ function NewsBoy_namespace_handler()
     
     // Add admin opener Javascript function
     $template->add_header('<!-- NewsBoy: admin panel nav function -->
+    <enano:no-opt>
     <script type="text/javascript">
       function newsboy_open_admin()
       {
@@ -110,7 +111,8 @@ function NewsBoy_namespace_handler()
         var loc = makeUrlNS(\'Special\', \'Administration\', \'module=\' + namespace_list[\'Admin\'] + \'NewsboyItemManager\');
         window.location = loc;
       }
-    </script>');
+    </script>
+    </enano:no-opt>');
     
     $x = getConfig('nb_portal_title');
     
