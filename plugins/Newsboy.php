@@ -237,26 +237,35 @@ function NewsBoy_portal()
 {
   global $db, $session, $paths, $template, $plugins; // Common objects
   
-  $news_template = <<<TPLCODE
-  <div class="tblholder news">
-    <table border="0" cellspacing="1" cellpadding="4" style="width: 100%;">
-      <tr>
-        <th><a href="{LINK}" style="color: inherit;">{TITLE}</a></th>
-      </tr>
-      <tr>
-        <td class="row3">
-          {CONTENT}
-        </td>
-      </tr>
-      <tr>
-        <th class="subhead" style="font-weight: normal; font-size: 67%;">
-          Posted by {USER_LINK} on {DATE}<br />
-          [ {NUM_COMMENTS} comment{COMMENT_S} | {COMMENT_LINK} ]
-        </th>
-      </tr>
-    </table>
-  </div>
+  if ( file_exists( ENANO_ROOT . "/themes/{$template->theme}/newsboy-post.tpl" ) )
+  {
+    $parser = $template->makeParser("newsboy-post.tpl");
+  }
+  else
+  {
+    $news_template = <<<TPLCODE
+    <div class="tblholder news">
+      <table border="0" cellspacing="1" cellpadding="4" style="width: 100%;">
+        <tr>
+          <th><a href="{LINK}" style="color: inherit;">{TITLE}</a></th>
+        </tr>
+        <tr>
+          <td class="row3">
+            {CONTENT}
+          </td>
+        </tr>
+        <tr>
+          <th class="subhead" style="font-weight: normal; font-size: 67%;">
+            Posted by {USER_LINK} on {DATE}<br />
+            [ {NUM_COMMENTS} comment{COMMENT_S} | {COMMENT_LINK} ]
+          </th>
+        </tr>
+      </table>
+    </div>
 TPLCODE;
+  
+    $parser = $template->makeParserText($news_template);
+  }
   
   /*
   $p = RenderMan::strToPageID(getConfig('main_page'));
@@ -296,7 +305,15 @@ TPLCODE;
     eval($content);
   }
   
-  echo '<h2>Latest news</h2>';
+  if ( file_exists( ENANO_ROOT . "/themes/{$template->theme}/newsboy-portal-pre.tpl" ) )
+  {
+    $parser_pre = $template->makeParser("newsboy-portal-pre.tpl");
+    echo $parser_pre->run();
+  }
+  else
+  {
+    echo '<h2>Latest news</h2>';
+  }
     
   $q = $db->sql_unbuffered_query('SELECT p.*, COUNT(c.comment_id) AS num_comments, t.page_text, l.time_id, l.author, u.user_level FROM '.table_prefix.'pages AS p
          LEFT JOIN '.table_prefix.'comments AS c
@@ -319,7 +336,6 @@ TPLCODE;
   if ( $row = $db->fetchrow() )
   {
     $i = 0;
-    $parser = $template->makeParserText($news_template);
     do
     {
       if ( $i < 5 )
@@ -378,6 +394,12 @@ TPLCODE;
   {
     echo '<p>No news items yet.</p>';
   }
+  if ( file_exists( ENANO_ROOT . "/themes/{$template->theme}/newsboy-portal-post.tpl" ) )
+  {
+    $parser_post = $template->makeParser("newsboy-portal-post.tpl");
+    echo $parser_post->run();
+  }
+  
   if ( $session->user_level >= USER_LEVEL_ADMIN )
   {
     echo '<div class="tblholder" style="margin: 10px auto 0 auto; display: table;">
