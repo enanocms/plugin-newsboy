@@ -284,7 +284,8 @@ TPLCODE;
     }
   /* } */
   
-  $s = $paths->nslist['NewsBoy'] . 'Announce';
+  $announce_page_default = $paths->nslist['NewsBoy'] . 'Announce';
+  $s = $announce_page_default;
   $announce_page = getConfig('nb_announce_page');
   if ( !empty($announce_page) && isPage($announce_page) )
   {
@@ -303,6 +304,10 @@ TPLCODE;
     $content = $page->fetch_text();
     $content = '?>' . RenderMan::render($content);
     eval($content);
+  }
+  else
+  {
+    $stuff = RenderMan::strToPageID($announce_page_default);
   }
   
   if ( file_exists( ENANO_ROOT . "/themes/{$template->theme}/newsboy-portal-pre.tpl" ) )
@@ -412,7 +417,6 @@ TPLCODE;
             </table>
           </div><br />';
   }
-  show_category_info();
 }
 
 /**
