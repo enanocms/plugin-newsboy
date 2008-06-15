@@ -24,7 +24,7 @@ Author URI: http://www.enanocms.org/
 $plugins->attachHook('acl_rule_init', 'NewsBoy_namespace_setup($this);');
 
 // Hook into page rendering
-$plugins->attachHook('page_not_found', 'NewsBoy_namespace_handler();');
+$plugins->attachHook('page_not_found', 'NewsBoy_namespace_handler($this);');
 $plugins->attachHook('send_page_footers', 'NewsBoy_PortalLink();');
 
 // String to determine page type string
@@ -70,7 +70,7 @@ function NewsBoy_namespace_setup(&$paths)
   
 }
 
-function NewsBoy_namespace_handler()
+function NewsBoy_namespace_handler($page)
 {
   global $db, $session, $paths, $template, $plugins; // Common objects
   
@@ -82,11 +82,7 @@ function NewsBoy_namespace_handler()
   if ( $paths->namespace != 'NewsBoy' )
     return;
   
-  $chk = $paths->page;
-  $chk1 = substr($chk, 0, ( strlen($paths->nslist['NewsBoy']) + 8 ));
-  $chk2 = substr($chk, 0, ( strlen($paths->nslist['NewsBoy']) + 7 ));
-  
-  if ( $paths->cpage['urlname_nons'] == 'Portal' || $paths->cpage['urlname_nons'] == 'Archive' || $chk1 == $paths->nslist['NewsBoy'] . 'Archive/' || $chk2 == $paths->nslist['NewsBoy'] . 'Archive' )
+  if ( $paths->cpage['urlname_nons'] == 'Portal' || preg_match('/^Archive(\/|$)/', $page->page_id) || preg_match('/^Article\//', $page->page_id) )
   {
     
     // Add admin opener Javascript function
@@ -122,16 +118,60 @@ function NewsBoy_namespace_handler()
               $x ) :
           'News Archive';
     
-    if ( !$session->get_permissions('read') )
+    if ( !$page->perms->get_permissions('read') )
     {
-      die_friendly('Access denied', '<div class="error-box"><b>Access to this page is denied.</b><br />This may be because you are not logged in or you have not met certain criteria for viewing this page.</div>');
+      $page->err_access_denied();
+      return false;
     }
     
     $paths->cpage['comments_on'] = 0;
     
-    $template->header();
-    ( $paths->cpage['urlname_nons'] == 'Portal' ) ? NewsBoy_portal() : NewsBoy_archive();
-    $template->footer();
+    if ( $page->page_id == 'Portal' )
+    {
+      $template->header();
+      NewsBoy_portal();
+      $template->footer();
+    }
+    else if ( preg_match('/^Archive(\/|$)/', $page->page_id) )
+    {
+      $template->header();
+      NewsBoy_archive();
+      $template->footer();
+    }
+    else if ( preg_match('/^Article\//', $page->page_id) )
+    {
+      if ( !preg_match('#^Article/([0-9]{4})/([0-9]{2})/([0-9]{2})/(.+?)$#', $page->page_id, $id_match) )
+      {
+        return;
+      }
+      // look around for this page
+      // int mktime  ([ int $hour  [, int $minute  [, int $second  [, int $month  [, int $day  [, int $year  [, int $is_dst  ]]]]]]] )
+      $timestamp_min = mktime(0, 0, 0, intval($id_match[2]), intval($id_match[3]), intval($id_match[1]));
+      $timestamp_max = $timestamp_min + 86400;
+      // mysql and postgresql friendly
+      $integer_prepend = ( ENANO_DBLAYER == 'MYSQL' ) ? "unsigned" : '';
+      $q = $db->sql_query('SELECT urlname, name FROM ' . table_prefix . "pages WHERE CAST(urlname AS $integer_prepend integer) >= $timestamp_min AND CAST(urlname AS $integer_prepend integer) <= $timestamp_max AND namespace = 'NewsBoy';");
+      if ( !$q )
+        $db->_die();
+      if ( $db->numrows() < 1 )
+        return;
+      // found a page
+      $row = $db->fetchrow();
+      if ( sanitize_page_id($row['name']) === $id_match[4] )
+      {
+        // we have a definitive match, send the page through
+        $article = new PageProcessor($row['urlname'], 'NewsBoy');
+        $article->send_headers = $page->send_headers;
+        $article->password = $page->password;
+        $article->send(true);
+      }
+      else
+      {
+        // can't find it.
+        return;
+      }
+      return;
+    }
   }
 }
 
@@ -377,7 +417,7 @@ TPLCODE;
         $comment_link = '<a href="' . makeUrlNS('NewsBoy', $row['urlname'], false, true) . '#do:comments" style="color: inherit;">add a comment</a>';
         $parser->assign_vars(array(
             'TITLE' => $title,
-            'LINK' => makeUrlNS('NewsBoy', $row['urlname']),
+            'LINK' => nb_make_article_url($row['urlname'], $row['name']),
             'CONTENT' => $content,
             'USER_LINK' => $user_link,
             'DATE' => $date,
@@ -430,7 +470,7 @@ class NewsBoyFormatter
 {
   function article_link($name, $row)
   {
-    $article_link = '<a href="' . makeUrlNS('NewsBoy', $row['urlname']) . '">' . $row['name'] . '</a>';
+    $article_link = '<a href="' . nb_make_article_url($row['urlname'], $row['name']) . '">' . $row['name'] . '</a>';
     return $article_link;
   }
   function format_date($date, $row)
@@ -1084,6 +1124,23 @@ function nb_trim_paragraph($text, $len = 500, &$trimmed)
     $text = substr($text, 0, $i);
   }
   return $text;
+}
+
+/**
+ * Generates a link to the given Newsboy article given the article name and timestamp
+ * @param int Article timestamp
+ * @param string Article title
+ * @return string
+ */
+
+function nb_make_article_url($timestamp, $title = false)
+{
+  if ( !$title )
+    return makeUrlNS('NewsBoy', $timestamp);
+  $day = date('d', $timestamp);
+  $year = date('Y', $timestamp);
+  $month = date('m', $timestamp);
+  return makeUrlNS('NewsBoy', "Article/$year/$month/$day/" . sanitize_page_id($title));
 }
 
 ?>
