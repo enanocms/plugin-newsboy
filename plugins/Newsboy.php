@@ -112,15 +112,24 @@ function NewsBoy_namespace_handler($page)
     
     $x = getConfig('nb_portal_title');
     
-    $page_name = ( $paths->cpage['urlname_nons'] == 'Portal' ) ?
-          ( ( empty($x) ) ?
-              'Welcome to ' . getConfig('site_name') :
-              $x ) :
-          'News Archive';
-    if ( method_exists($template, 'assign_vars') )
-      $template->assign_vars(array('PAGE_NAME' => $page_name));
-    else
-      $template->tpl_strings['PAGE_NAME'] = $page_name;
+    if ( $page->page_id == 'Portal' || $page->page_id == 'Archive' )
+    {
+      $page_name = ( $page->page_id == 'Portal' ) ?
+            ( ( empty($x) ) ?
+                'Welcome to ' . getConfig('site_name') :
+                $x ) :
+            'News Archive';
+      if ( method_exists($template, 'assign_vars') )
+      {
+        $template->assign_vars(array(
+            'PAGE_NAME' => $page_name
+          ));
+      }
+      else
+      {
+        $template->tpl_strings['PAGE_NAME'] = $page_name;
+      }
+    }
     
     if ( !$page->perms->get_permissions('read') )
     {
@@ -144,13 +153,13 @@ function NewsBoy_namespace_handler($page)
     }
     else if ( preg_match('/^Article\//', $page->page_id) )
     {
-      if ( !preg_match('#^Article/([0-9]{4})/([0-9]{2})/([0-9]{2})/(.+?)$#', $page->page_id, $id_match) )
+      if ( !preg_match('#^Article/([0-9]{4})/([0-9]{1,2})/([0-9]{1,2})/(.+?)$#', $page->page_id, $id_match) )
       {
         return;
       }
       // look around for this page
       // int mktime  ([ int $hour  [, int $minute  [, int $second  [, int $month  [, int $day  [, int $year  [, int $is_dst  ]]]]]]] )
-      $timestamp_min = mktime(0, 0, 0, intval($id_match[2]), intval($id_match[3]), intval($id_match[1]));
+      $timestamp_min = gmmktime(0, 0, 0, intval($id_match[2]), intval($id_match[3]), intval($id_match[1]));
       $timestamp_max = $timestamp_min + 86400;
       // mysql and postgresql friendly
       $integer_prepend = ( ENANO_DBLAYER == 'MYSQL' ) ? "unsigned" : '';
@@ -160,16 +169,20 @@ function NewsBoy_namespace_handler($page)
       if ( $db->numrows() < 1 )
         return;
       // found a page
-      $row = $db->fetchrow();
-      if ( sanitize_page_id($row['name']) === $id_match[4] )
+      $found_match = false;
+      while ( $row = $db->fetchrow() )
       {
-        // we have a definitive match, send the page through
-        $article = new PageProcessor($row['urlname'], 'NewsBoy');
-        $article->send_headers = $page->send_headers;
-        $article->password = $page->password;
-        $article->send(true);
+        if ( sanitize_page_id($row['name']) === $id_match[4] )
+        {
+          $found_match = true;
+          // we have a definitive match, send the page through
+          $article = new PageProcessor($row['urlname'], 'NewsBoy');
+          $article->send_headers = $page->send_headers;
+          $article->password = $page->password;
+          $article->send(true);
+        }
       }
-      else
+      if ( !$found_match )
       {
         // can't find it.
         return;
@@ -443,6 +456,7 @@ TPLCODE;
   {
     echo '<p>No news items yet.</p>';
   }
+  $db->free_result();
   if ( file_exists( ENANO_ROOT . "/themes/{$template->theme}/newsboy-portal-post.tpl" ) )
   {
     $parser_post = $template->makeParser("newsboy-portal-post.tpl");
@@ -1141,9 +1155,9 @@ function nb_make_article_url($timestamp, $title = false)
 {
   if ( !$title )
     return makeUrlNS('NewsBoy', $timestamp);
-  $day = date('d', $timestamp);
-  $year = date('Y', $timestamp);
-  $month = date('m', $timestamp);
+  $day = gmdate('d', $timestamp);
+  $year = gmdate('Y', $timestamp);
+  $month = gmdate('m', $timestamp);
   return makeUrlNS('NewsBoy', "Article/$year/$month/$day/" . sanitize_page_id($title));
 }
 
