@@ -112,11 +112,15 @@ function NewsBoy_namespace_handler($page)
     
     $x = getConfig('nb_portal_title');
     
-    $template->tpl_strings['PAGE_NAME'] = ( $paths->cpage['urlname_nons'] == 'Portal' ) ?
+    $page_name = ( $paths->cpage['urlname_nons'] == 'Portal' ) ?
           ( ( empty($x) ) ?
               'Welcome to ' . getConfig('site_name') :
               $x ) :
           'News Archive';
+    if ( method_exists($template, 'assign_vars') )
+      $template->assign_vars(array('PAGE_NAME' => $page_name));
+    else
+      $template->tpl_strings['PAGE_NAME'] = $page_name;
     
     if ( !$page->perms->get_permissions('read') )
     {
