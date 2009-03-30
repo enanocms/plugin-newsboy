@@ -1,16 +1,16 @@
 <?php
 /*
 Plugin Name: Newsboy
-Plugin URI: javascript: // No URL yet, stay tuned!
+Plugin URI: http://enanocms.org/plugin/newsboy
 Description: Newsboy adds a news management system to Enano. It can integrate with the Feed Me plugin to provide an additional RSS feed. 
 Author: Dan Fuhry
 Version: 0.1
-Author URI: http://www.enanocms.org/
+Author URI: http://enanocms.org/
 */
 
 /*
  * Newsboy
- * Version 0.1
+ * Version 1.1.2
  * Copyright (C) 2007 Dan Fuhry
  *
  * This program is Free Software; you can redistribute and/or modify it under the terms of the GNU General Public License
@@ -192,21 +192,31 @@ function NewsBoy_namespace_handler(&$page)
   }
 }
 
-class Namespace_NewsBoy extends Namespace_Default
+// This is a 1.1.6-and-later thing.
+
+if ( class_exists('Namespace_Default') )
 {
-  public $perms;
-  
-  function __construct($a, $b, $c = 0)
+  class Namespace_NewsBoy extends Namespace_Default
   {
-    global $db, $session, $paths, $template, $plugins; // Common objects
+    public $perms;
     
-    parent::__construct($a, $b, $c);
-    $this->perms = $session->fetch_page_acl($this->page_id, $this->namespace);
-  }
-  
-  function send()
-  {
-    NewsBoy_namespace_handler($this);
+    function __construct($a, $b, $c = 0)
+    {
+      global $db, $session, $paths, $template, $plugins; // Common objects
+      
+      parent::__construct($a, $b, $c);
+      $this->perms = $session->fetch_page_acl($this->page_id, $this->namespace);
+    }
+    
+    function send()
+    {
+      ob_start();
+      NewsBoy_namespace_handler($this);
+      if ( ob_get_contents() == '' )
+      {
+        parent::send();
+      } 
+    }
   }
 }
 
@@ -913,25 +923,19 @@ function page_Admin_NewsboyItemManager()
           {
             $publ = ( isset($_POST['published']) ) ? 1 : 0;
             
-            $result = PageUtils::createpage( (string)$time, 'NewsBoy', $name, $publ );
+            $page = new PageProcessor((string)$time, 'NewsBoy');
+            $page->create_page($name, $publ);
             
-            if ( $result == 'good' )
+            if ( $page->update_page($_POST['content'], 'Initial revision', false) )
             {
-              // Set content
-              $content = RenderMan::preprocess_text($_POST['content'], true); // this also SQL-escapes it
-              
-              $q = $db->sql_query('UPDATE '.table_prefix.'page_text SET page_text=\'' . $content . '\' WHERE page_id=\'' . $time . '\' AND namespace=\'NewsBoy\';');
-              if ( !$q )
-                $db->_die();
-              
-              if ( $result )
-                echo '<div class="info-box">Your changes have been saved.</div>';
-              else
-                $errors[] = 'PageUtils::createpage returned an error.';
+              echo '<div class="info-box">Your changes have been saved.</div>';
             }
             else
             {
-              $errors[] = 'PageUtils::createpage returned an error: ' . htmlspecialchars($result);
+              while ( $err = $page->pop_error() )
+              {
+                $errors[] = $err;
+              }
             }
             
             break;
