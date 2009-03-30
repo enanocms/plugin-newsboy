@@ -70,7 +70,7 @@ function NewsBoy_namespace_setup(&$paths)
   
 }
 
-function NewsBoy_namespace_handler($page)
+function NewsBoy_namespace_handler(&$page)
 {
   global $db, $session, $paths, $template, $plugins; // Common objects
   
@@ -189,6 +189,24 @@ function NewsBoy_namespace_handler($page)
       }
       return;
     }
+  }
+}
+
+class Namespace_NewsBoy extends Namespace_Default
+{
+  public $perms;
+  
+  function __construct($a, $b, $c = 0)
+  {
+    global $db, $session, $paths, $template, $plugins; // Common objects
+    
+    parent::__construct($a, $b, $c);
+    $this->perms = $session->fetch_page_acl($this->page_id, $this->namespace);
+  }
+  
+  function send()
+  {
+    NewsBoy_namespace_handler($this);
   }
 }
 
