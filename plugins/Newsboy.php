@@ -448,7 +448,7 @@ TPLCODE;
         }
         if ( $trimmed )
         {
-          $link = ' <a href="' . makeUrlNS('NewsBoy', $row['urlname'], false, true) . '">Read more...</a>';
+          $link = ' <a href="' . nb_make_article_url($row['urlname'], $row['name']) . '">Read more...</a>';
           $content = preg_replace('/(.+?)<\/(p|ul|table|div|pre)>([\s]*?)$/Usi', '\\1' . $link . '</\\2>\\3', $content, 1);
           if ( !strstr($content, $link) )
           {
