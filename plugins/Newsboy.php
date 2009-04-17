@@ -65,6 +65,7 @@ function NewsBoy_namespace_setup(&$paths)
   $session->acl_extend_scope('upload_files',           'NewsBoy', $paths);
   $session->acl_extend_scope('upload_new_version',     'NewsBoy', $paths);
   $session->acl_extend_scope('create_page',            'NewsBoy', $paths);
+  $session->acl_extend_scope('html_in_pages',          'NewsBoy', $paths);
   $session->acl_extend_scope('php_in_pages',           'NewsBoy', $paths);
   $session->acl_extend_scope('edit_acl',               'NewsBoy', $paths);
   
@@ -215,7 +216,11 @@ if ( class_exists('Namespace_Default') )
       if ( ob_get_contents() == '' )
       {
         parent::send();
-      } 
+      }
+      // transfer OB to parent
+      $c = ob_get_contents();
+      ob_end_clean();
+      echo $c;
     }
   }
 }
@@ -836,14 +841,12 @@ function page_Admin_NewsboyItemManager()
           if(!$e) $db->_die('The page text entry could not be deleted.');
           $e = $db->sql_query('DELETE FROM '.table_prefix.'pages WHERE urlname=\''.$page_id.'\' AND namespace=\''.$namespace.'\'');
           if(!$e) $db->_die('The page entry could not be deleted.');
-          $e = $db->sql_query('DELETE FROM '.table_prefix.'files WHERE page_id=\''.$page_id.'\'');
-          if(!$e) $db->_die('The file entry could not be deleted.');
           
           $result = 'This page has been deleted. Note that there is still a log of edits and actions in the database, and anyone with admin rights can raise this page from the dead unless the log is cleared. If the deleted file is an image, there may still be cached thumbnails of it in the cache/ directory, which is inaccessible to users.';
           
           echo $result . '<br />
                <br />
-               <a href="#" onclick="ajaxPage(\'' . $paths->cpage['module'] . '\');">Return to Newsboy</a>';
+               <a href="#" onclick="ajaxPage(\'' . $paths->cpage['module'] . '\'); return false;">Return to Newsboy</a>';
         }
         else
         {
@@ -926,9 +929,10 @@ function page_Admin_NewsboyItemManager()
             $page = new PageProcessor((string)$time, 'NewsBoy');
             $page->create_page($name, $publ);
             
-            if ( $page->update_page($_POST['content'], 'Initial revision', false) )
+            if ( $page->update_page($_POST['content'], 'Initial revision', false, 'wikitext') )
             {
               echo '<div class="info-box">Your changes have been saved.</div>';
+              break;
             }
             else
             {
@@ -936,9 +940,8 @@ function page_Admin_NewsboyItemManager()
               {
                 $errors[] = $err;
               }
+              $done = false;
             }
-            
-            break;
           }
         }
         
