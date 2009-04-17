@@ -170,7 +170,7 @@ function NewsBoy_namespace_handler(&$page)
         return;
       // found a page
       $found_match = false;
-      while ( $row = $db->fetchrow() )
+      while ( $row = $db->fetchrow($q) )
       {
         if ( sanitize_page_id($row['name']) === $id_match[4] )
         {
@@ -198,7 +198,7 @@ if ( class_exists('Namespace_Default') )
 {
   class Namespace_NewsBoy extends Namespace_Default
   {
-    public $perms;
+    public $perms, $password, $send_headers;
     
     function __construct($a, $b, $c = 0)
     {
