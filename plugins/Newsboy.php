@@ -428,12 +428,14 @@ TPLCODE;
   if ( !$q )
     $db->_die();
   
+  $num_articles = intval(getConfig('nb_portal_num_articles', 5));
+  
   if ( $row = $db->fetchrow() )
   {
     $i = 0;
     do
     {
-      if ( $i < 5 )
+      if ( $i < $num_articles )
       {
         $content = $row['page_text'];
         
@@ -1101,6 +1103,11 @@ function page_Admin_NewsboyConfiguration()
       setConfig('nb_announce_page', $_POST['announce_page']);
     else
       setConfig('nb_announce_page', '');
+    
+    $num_articles = intval($_POST['num_articles']);
+    if ( $num_articles > 0 )
+      setConfig('nb_portal_num_articles', $num_articles);
+    
     // Submit
     echo '<div class="info-box">Your changes have been saved.</div>';
   }
@@ -1128,6 +1135,14 @@ function page_Admin_NewsboyConfiguration()
               </td>
               <td class="row1">
                 ' . $template->pagename_field('announce_page', htmlspecialchars(getConfig('nb_announce_page'))) . '
+              </td>
+            </tr>
+            <tr>
+              <td class="row2">
+                Number of articles to show on portal:
+              </td>
+              <td class="row1">
+                <input type="text" name="num_articles" value="' . getConfig('nb_portal_num_articles', '5') . '" size="7" />
               </td>
             </tr>
             <tr>
