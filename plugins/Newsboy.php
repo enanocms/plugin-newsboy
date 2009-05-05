@@ -439,7 +439,9 @@ TPLCODE;
     echo '<h2>Latest news</h2>';
   }
     
-  $q = $db->sql_unbuffered_query('SELECT p.*, COUNT(c.comment_id) AS num_comments, t.page_text, l.time_id, l.author, u.user_level FROM '.table_prefix.'pages AS p
+  $num_articles = intval(getConfig('nb_portal_num_articles', 5));
+  
+  $q = $db->sql_query('SELECT p.*, COUNT(c.comment_id) AS num_comments, t.page_text, l.time_id, l.author, u.user_level FROM '.table_prefix.'pages AS p
          LEFT JOIN '.table_prefix.'comments AS c
            ON ( c.page_id=p.urlname AND c.namespace=p.namespace )
          LEFT JOIN '.table_prefix.'page_text AS t
@@ -453,13 +455,12 @@ TPLCODE;
            AND p.urlname!=\'Announce\'
            AND p.visible=1
          GROUP BY p.urlname
-         ORDER BY urlname DESC;');
+         ORDER BY urlname DESC
+         LIMIT ' . ($num_articles + 1) . ';');
   if ( !$q )
     $db->_die();
   
-  $num_articles = intval(getConfig('nb_portal_num_articles', 5));
-  
-  if ( $row = $db->fetchrow() )
+  if ( $row = $db->fetchrow($q) )
   {
     $i = 0;
     do
@@ -514,7 +515,7 @@ TPLCODE;
         break;
       }
       $i++;
-    } while ( $row = $db->fetchrow() );
+    } while ( $row = $db->fetchrow($q) );
   }
   else
   {
