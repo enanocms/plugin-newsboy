@@ -83,7 +83,7 @@ function NewsBoy_namespace_handler(&$page)
   if ( $paths->namespace != 'NewsBoy' )
     return;
   
-  if ( $paths->cpage['urlname_nons'] == 'Portal' || preg_match('/^Archive(\/|$)/', $page->page_id) || preg_match('/^Article\//', $page->page_id) )
+  if ( $paths->cpage['urlname_nons'] == 'Portal' || preg_match('/^Archive(\/|$)/', $page->page_id) )
   {
     
     // Add admin opener Javascript function
@@ -111,27 +111,6 @@ function NewsBoy_namespace_handler(&$page)
     </script>
     </enano:no-opt>');
     
-    $x = getConfig('nb_portal_title');
-    
-    if ( $page->page_id == 'Portal' || $page->page_id == 'Archive' )
-    {
-      $page_name = ( $page->page_id == 'Portal' ) ?
-            ( ( empty($x) ) ?
-                'Welcome to ' . getConfig('site_name') :
-                $x ) :
-            'News Archive';
-      if ( method_exists($template, 'assign_vars') )
-      {
-        $template->assign_vars(array(
-            'PAGE_NAME' => $page_name
-          ));
-      }
-      else
-      {
-        $template->tpl_strings['PAGE_NAME'] = $page_name;
-      }
-    }
-    
     if ( !$page->perms->get_permissions('read') )
     {
       $page->err_access_denied();
@@ -152,44 +131,6 @@ function NewsBoy_namespace_handler(&$page)
       NewsBoy_archive();
       $template->footer();
     }
-    else if ( preg_match('/^Article\//', $page->page_id) )
-    {
-      if ( !preg_match('#^Article/([0-9]{4})/([0-9]{1,2})/([0-9]{1,2})/(.+?)$#', $page->page_id, $id_match) )
-      {
-        return;
-      }
-      // look around for this page
-      // int mktime  ([ int $hour  [, int $minute  [, int $second  [, int $month  [, int $day  [, int $year  [, int $is_dst  ]]]]]]] )
-      $timestamp_min = gmmktime(0, 0, 0, intval($id_match[2]), intval($id_match[3]), intval($id_match[1]));
-      $timestamp_max = $timestamp_min + 86400;
-      // mysql and postgresql friendly
-      $integer_prepend = ( ENANO_DBLAYER == 'MYSQL' ) ? "unsigned" : '';
-      $q = $db->sql_query('SELECT urlname, name FROM ' . table_prefix . "pages WHERE CAST(urlname AS $integer_prepend integer) >= $timestamp_min AND CAST(urlname AS $integer_prepend integer) <= $timestamp_max AND namespace = 'NewsBoy';");
-      if ( !$q )
-        $db->_die();
-      if ( $db->numrows() < 1 )
-        return;
-      // found a page
-      $found_match = false;
-      while ( $row = $db->fetchrow($q) )
-      {
-        if ( sanitize_page_id($row['name']) === $id_match[4] )
-        {
-          $found_match = true;
-          // we have a definitive match, send the page through
-          $article = new PageProcessor($row['urlname'], 'NewsBoy');
-          $article->send_headers = $page->send_headers;
-          $article->password = $page->password;
-          $article->send(true);
-        }
-      }
-      if ( !$found_match )
-      {
-        // can't find it.
-        return;
-      }
-      return;
-    }
   }
 }
 
@@ -201,12 +142,60 @@ if ( class_exists('Namespace_Default') )
   {
     public $perms, $password, $send_headers;
     
-    function __construct($a, $b, $c = 0)
+    function __construct($page_id, $namespace, $revision = 0)
     {
       global $db, $session, $paths, $template, $plugins; // Common objects
       
-      parent::__construct($a, $b, $c);
+      if ( preg_match('#^Article/#', $page_id) )
+      {
+        $timestamp = NewsBoy_resolve_article_url($page_id);
+        if ( $timestamp )
+        {
+          $page_id = strval($timestamp);
+          $template->set_page($page_id, $namespace);
+        }
+      }
+      
+      parent::__construct($page_id, $namespace, $revision);
       $this->perms = $session->fetch_page_acl($this->page_id, $this->namespace);
+      $this->build_cdata();
+    }  
+    
+    function build_cdata()
+    {
+      if ( $this->page_id == 'Portal' || $this->page_id == 'Article' )
+      {
+        $config_title = getConfig('nb_portal_title');
+        $this->cdata = array(
+            'urlname' => $this->page_id,
+            'namespace' => $this->namespace,
+            'name' => $this->page_id == 'Portal' ? ( !empty($config_title) ? $config_title : "Welcome to " . getConfig('site_name') ) : 'News archive',
+            'special' => 1,
+            'comments_on' => 0,
+            'protected' => 0,
+            'wiki_mode' => 0,
+            'visible' => 1,
+            'delvotes' => 0,
+            'delvote_ips' => ''
+          );
+        $this->cdata = Namespace_Default::bake_cdata($this->cdata);
+        $this->title =& $this->cdata['name'];
+      }
+      else
+      {
+        parent::build_cdata();
+      }
+    }
+    
+    function set_conds()
+    {
+      parent::set_conds();
+      if ( $this->page_id == 'Portal' || $this->page_id == 'Archive' )
+      {
+        $this->conds['edit'] = false;
+        $this->conds['password'] = false;
+        $this->conds['clearlogs'] = false;
+      }
     }
     
     function send()
@@ -223,6 +212,44 @@ if ( class_exists('Namespace_Default') )
       echo $c;
     }
   }
+}
+
+function NewsBoy_resolve_article_url($url)
+{
+  global $db, $session, $paths, $template, $plugins; // Common objects
+  
+  if ( !preg_match('#^Article/([0-9]{4})/([0-9]{1,2})/([0-9]{1,2})/(.+?)$#', $url, $id_match) )
+  {
+    return false;
+  }
+  // look around for this page
+  // int mktime  ([ int $hour  [, int $minute  [, int $second  [, int $month  [, int $day  [, int $year  [, int $is_dst  ]]]]]]] )
+  $timestamp_min = gmmktime(0, 0, 0, intval($id_match[2]), intval($id_match[3]), intval($id_match[1]));
+  $timestamp_max = $timestamp_min + 86400;
+  // mysql and postgresql friendly
+  $integer_prepend = ( ENANO_DBLAYER == 'MYSQL' ) ? "unsigned" : '';
+  $q = $db->sql_query('SELECT urlname, name FROM ' . table_prefix . "pages WHERE CAST(urlname AS $integer_prepend integer) >= $timestamp_min AND CAST(urlname AS $integer_prepend integer) <= $timestamp_max AND namespace = 'NewsBoy';");
+  if ( !$q )
+    $db->_die();
+  if ( $db->numrows() < 1 )
+    return false;
+  // found a page
+  $found_match = false;
+  while ( $row = $db->fetchrow($q) )
+  {
+    if ( sanitize_page_id($row['name']) === $id_match[4] )
+    {
+      $found_match = true;
+      // we have a definitive match, send the page through
+      return $row['urlname'];
+    }
+  }
+  if ( !$found_match )
+  {
+    // can't find it.
+    return false;
+  }
+  return false;
 }
 
 function NewsBoy_set_page_string()
