@@ -83,7 +83,7 @@ function NewsBoy_namespace_handler(&$page)
   if ( $paths->namespace != 'NewsBoy' )
     return;
   
-  if ( $paths->cpage['urlname_nons'] == 'Portal' || preg_match('/^Archive(\/|$)/', $page->page_id) )
+  if ( $page->page_id == 'Portal' || preg_match('/^Archive(\/|$)/', $page->page_id) )
   {
     
     // Add admin opener Javascript function
@@ -111,7 +111,11 @@ function NewsBoy_namespace_handler(&$page)
     </script>
     </enano:no-opt>');
     
-    if ( !$page->perms->get_permissions('read') )
+    $perms =& $page->perms;
+    if ( !$perms )
+      $perms = $session->fetch_page_acl($page->page_id, $page->namespace);
+    
+    if ( !$perms->get_permissions('read') )
     {
       $page->err_access_denied();
       return false;
@@ -157,9 +161,7 @@ if ( class_exists('Namespace_Default') )
       }
       
       parent::__construct($page_id, $namespace, $revision);
-      $this->perms = $session->fetch_page_acl($this->page_id, $this->namespace);
-      $this->build_cdata();
-    }  
+    }
     
     function build_cdata()
     {
