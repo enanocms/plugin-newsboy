@@ -317,9 +317,10 @@ function NewsBoy_feed_handler($mode)
            ON ( t.page_id=p.urlname AND t.namespace=p.namespace )
          WHERE p.namespace=\'NewsBoy\'
            AND l.action=\'create\'
-           AND p.urlname REGEXP \'^([0-9]+)$\'
+           AND p.urlname '.(ENANO_DBLAYER == 'MYSQL'?'REGEXP':'~').' \'^([0-9]+)$\'
            AND p.visible=1
-         GROUP BY p.urlname
+         GROUP BY p.urlname, p.page_order, p.name, p.namespace, p.special, p.visible, p.comments_on, p.page_format, p.protected,
+           p.wiki_mode, p.delvotes, p.password, p.delvote_ips, l.time_id, l.author, u.user_level, t.page_text
          ORDER BY urlname DESC
          LIMIT '.$limit.';';
   
@@ -449,13 +450,14 @@ TPLCODE;
          LEFT JOIN '.table_prefix.'logs AS l
            ON ( l.page_id=p.urlname AND l.namespace=p.namespace )
          LEFT JOIN '.table_prefix.'users AS u
-           ON ( u.username=l.author OR u.user_id=1 )
+           ON ( u.username=l.author )
          WHERE p.namespace=\'NewsBoy\'
            AND l.action=\'create\'
            AND p.urlname!=\'Announce\'
            AND p.visible=1
-         GROUP BY p.urlname
-         ORDER BY urlname DESC
+         GROUP BY p.urlname, p.page_order, p.name, p.namespace, p.special, p.visible, p.comments_on, p.page_format, p.protected,
+           p.wiki_mode, p.delvotes, p.password, p.delvote_ips, t.page_text, l.time_id, l.author, u.user_level
+         ORDER BY p.urlname DESC
          LIMIT ' . ($num_articles + 1) . ';');
   if ( !$q )
     $db->_die();
@@ -584,7 +586,7 @@ function NewsBoy_archive()
   $row_count = $entries_per_page + 1;
   
   // Determine number of total news entries
-  $q = $db->sql_query('SELECT urlname FROM '.table_prefix.'pages WHERE namespace=\'NewsBoy\' AND urlname REGEXP \'^([0-9]+)$\' AND visible=1;');
+  $q = $db->sql_query('SELECT urlname FROM '.table_prefix.'pages WHERE namespace=\'NewsBoy\' AND urlname '.(ENANO_DBLAYER == 'MYSQL'?'REGEXP':'~').' \'^([0-9]+)$\' AND visible=1;');
   if ( !$q )
     $db->_die();
   $r = $db->fetchrow();
@@ -603,9 +605,10 @@ function NewsBoy_archive()
            ON ( u.username=l.author )
          WHERE p.namespace=\'NewsBoy\'
            AND l.action=\'create\'
-           AND p.urlname REGEXP \'^([0-9]+)$\'
+           AND p.urlname '.(ENANO_DBLAYER == 'MYSQL'?'REGEXP':'~').' \'^([0-9]+)$\'
            AND p.visible=1
-         GROUP BY p.urlname
+         GROUP BY p.urlname, p.page_order, p.name, p.namespace, p.special, p.visible, p.comments_on, p.page_format, p.protected,
+           p.wiki_mode, p.delvotes, p.password, p.delvote_ips, l.time_id, l.author, u.user_level
          ORDER BY urlname DESC;';
   
   $q = $db->sql_unbuffered_query($sql);
@@ -1078,7 +1081,7 @@ function page_Admin_NewsboyItemManager()
     $row_class = 'row2';
     
     // List existing news entries
-    $q = $db->sql_query('SELECT name,urlname FROM '.table_prefix.'pages WHERE namespace="NewsBoy" AND urlname!="Announce" ORDER BY name ASC;');
+    $q = $db->sql_query('SELECT name,urlname FROM '.table_prefix.'pages WHERE namespace=\'NewsBoy\' AND urlname!=\'Announce\' ORDER BY name ASC;');
     
     if ( !$q )
       $db->_die();
