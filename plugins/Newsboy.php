@@ -718,7 +718,8 @@ function page_Admin_NewsboyItemManager()
             $time = mktime($hour, $minute, $second, $month, $day, $year);
           }
           
-          if ( isset($paths->pages[ $paths->nslist['NewsBoy'] . $time ]) && $paths->pages[ $paths->nslist['NewsBoy'] . $time ] != $paths->pages[ $paths->nslist['NewsBoy'] . $_POST['page_id'] ] )
+          $time_changed = $time !== intval($_POST['page_id']);
+          if ( isPage($paths->nslist['NewsBoy'] . $time) && $time_changed ) // $paths->pages[ $paths->nslist['NewsBoy'] . $time ] != $paths->pages[ $paths->nslist['NewsBoy'] . $_POST['page_id'] ] )
             $errors[] = 'You cannot have two news articles with the same publish time.';
           
           if ( count($errors) < 1 )
@@ -763,12 +764,13 @@ function page_Admin_NewsboyItemManager()
           echo '<div class="warning-box">Errors encountered while saving data:<ul><li>' . implode('</li><li>', $errors) . '</li></ul></div>';
         
         // Obtain page information
-        if ( !isset($paths->pages[ $paths->nslist['NewsBoy'] . $_GET['id'] ]) )
+        if ( !isPage($paths->nslist['NewsBoy'] . $_GET['id']) )
         {
           echo 'Invalid ID';
           return false;
         }
-        $page_info =& $paths->pages[ $paths->nslist['NewsBoy'] . $_GET['id'] ];
+        $page = namespace_factory($_GET['id'], 'NewsBoy');
+        $page_info = $page->get_cdata();
         $time = intval($page_info['urlname_nons']);
         
         // Get author
