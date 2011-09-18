@@ -165,7 +165,8 @@ if ( class_exists('Namespace_Default') )
     
     function build_cdata()
     {
-      if ( $this->page_id == 'Portal' || $this->page_id == 'Article' )
+      list($page_id_base) = explode('/', $this->page_id);
+      if ( $page_id_base == 'Portal' || $page_id_base == 'Article' || $page_id_base == 'Archive' )
       {
         $config_title = getConfig('nb_portal_title');
         $this->cdata = array(
